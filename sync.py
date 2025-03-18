@@ -3,6 +3,8 @@ import json
 import os
 from datetime import datetime
 from dotenv import load_dotenv
+import json
+import pandas as pd
 
 
 def get_unms_devices(base_url, api_key, verify_ssl=False):
@@ -99,6 +101,50 @@ def display_device_summary(devices):
         print(f"{name[:30]:<30} {model[:20]:<20} {ip:<15} {status:<10}")
 
 
+def extract_device_data(json_data):
+    """Extract specific fields from the JSON data and return as a dictionary."""
+
+    # Extract the requested fields
+    extracted_data = {
+        "site_name": json_data.get("identification", {}).get("site", {}).get("name"),
+        "site_type": json_data.get("identification", {}).get("site", {}).get("type"),
+        "mac": json_data.get("identification", {}).get("mac"),
+        "name": json_data.get("identification", {}).get("name"),
+        "model_name": json_data.get("identification", {}).get("modelName"),
+        "role": json_data.get("identification", {}).get("role"),
+        "status": json_data.get("overview", {}).get("status"),
+        "ip_address": json_data.get("ipAddress", "").split("/")[0] if json_data.get("ipAddress") else None
+    }
+
+    return extracted_data
+
+
+def save_device_data_to_excel():
+    # Load the JSON data from a file
+    try:
+        with open('unms_devices_20250318_192916.json', 'r') as file:
+            json_data = json.load(file)
+    except FileNotFoundError:
+        print("Please save your JSON data to a file named 'device_data.json' in the same directory as this script.")
+        return
+
+    # Check if the data is a list or a single object
+    if isinstance(json_data, list):
+        # Process each item in the list
+        extracted_items = [extract_device_data(item) for item in json_data]
+    else:
+        # Process the single object
+        extracted_items = [extract_device_data(json_data)]
+
+    # Create a DataFrame from the extracted data
+    df = pd.DataFrame(extracted_items)
+
+    # Save to Excel
+    excel_file = 'device_data_export.xlsx'
+    df.to_excel(excel_file, index=False)
+    print(f"Data successfully exported to {excel_file}")
+
+
 if __name__ == "__main__":
     # Load environment variables from .env file
     load_dotenv()
@@ -106,17 +152,19 @@ if __name__ == "__main__":
     # Get configuration from .env or command line arguments
     base_url = os.getenv("UNMS_SERVER")
     api_key = os.getenv("UNMS_API_KEY")
-    verify_ssl = False
+    verify_ssl = True
 
     # Retrieve devices
     print(f"Connecting to UNMS/UISP at {base_url}...")
-    devices = get_unms_devices(base_url, api_key, verify_ssl=verify_ssl)
+    # devices = get_unms_devices(base_url, api_key, verify_ssl=verify_ssl)
 
-    if devices:
+    # if devices:
         # Display summary
         # display_device_summary(devices)
 
         # Save to file
-        save_devices_to_file(devices)
-    else:
-        print("Failed to retrieve devices.")
+        # save_devices_to_file(devices)
+
+    save_device_data_to_excel()
+    # else:
+    #     print("Failed to retrieve devices.")
