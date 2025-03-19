@@ -1,5 +1,5 @@
 import requests
-import json
+import openpyxl
 import os
 from datetime import datetime
 from dotenv import load_dotenv
@@ -65,7 +65,7 @@ def save_devices_to_file(devices, output_file=None):
 
     # Generate default filename if none provided
     if output_file is None:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now().strftime("%Y%m%d")
         output_file = f"unms_devices_{timestamp}.json"
 
     # Save devices to file
@@ -76,42 +76,22 @@ def save_devices_to_file(devices, output_file=None):
     return output_file
 
 
-def display_device_summary(devices):
-    """
-    Display a summary of the devices retrieved
-
-    Args:
-        devices (list): List of device data
-    """
-    if devices is None or len(devices) == 0:
-        print("No devices found")
-        return
-
-    print(f"\nFound {len(devices)} devices:")
-    print("-" * 80)
-    print(f"{'Name':<30} {'Model':<20} {'IP Address':<15} {'Status':<10}")
-    print("-" * 80)
-
-    for device in devices:
-        name = device.get('identification', {}).get('name', 'Unknown')
-        model = device.get('identification', {}).get('model', 'Unknown')
-        ip = device.get('ipAddress', 'N/A')
-        status = device.get('status', {}).get('status', 'Unknown')
-
-        print(f"{name[:30]:<30} {model[:20]:<20} {ip:<15} {status:<10}")
-
-
 def extract_device_data(json_data):
     """Extract specific fields from the JSON data and return as a dictionary."""
 
-    # Extract the requested fields
+    identification = json_data.get("identification", {})
+    site = identification.get("site", {})
+
+    # print site
+    print(site)
+
     extracted_data = {
-        "site_name": json_data.get("identification", {}).get("site", {}).get("name"),
-        "site_type": json_data.get("identification", {}).get("site", {}).get("type"),
-        "mac": json_data.get("identification", {}).get("mac"),
-        "name": json_data.get("identification", {}).get("name"),
-        "model_name": json_data.get("identification", {}).get("modelName"),
-        "role": json_data.get("identification", {}).get("role"),
+        "site_name": site.get("name") if site else None,
+        "site_type": site.get("type") if site else None,
+        "mac": identification.get("mac"),
+        "name": identification.get("name"),
+        "model_name": identification.get("modelName"),
+        "role": identification.get("role"),
         "status": json_data.get("overview", {}).get("status"),
         "ip_address": json_data.get("ipAddress", "").split("/")[0] if json_data.get("ipAddress") else None
     }
@@ -119,10 +99,10 @@ def extract_device_data(json_data):
     return extracted_data
 
 
-def save_device_data_to_excel():
+def save_device_data_to_excel(file_name):
     # Load the JSON data from a file
     try:
-        with open('unms_devices_20250318_192916.json', 'r') as file:
+        with open(file_name, 'r') as file:
             json_data = json.load(file)
     except FileNotFoundError:
         print("Please save your JSON data to a file named 'device_data.json' in the same directory as this script.")
@@ -154,17 +134,25 @@ if __name__ == "__main__":
     api_key = os.getenv("UNMS_API_KEY")
     verify_ssl = True
 
-    # Retrieve devices
-    print(f"Connecting to UNMS/UISP at {base_url}...")
-    # devices = get_unms_devices(base_url, api_key, verify_ssl=verify_ssl)
+    timestamp = datetime.now().strftime("%Y%m%d")
+    output_json_file = f"unms_devices_{timestamp}.json"
 
-    # if devices:
-        # Display summary
-        # display_device_summary(devices)
+    # check if output_json_file already exists
+    if os.path.exists(output_json_file):
+        print(f"JSON file already exists: {output_json_file}")
+        save_device_data_to_excel(output_json_file)
+    else:
+        print(f"JSON file does not exist: {output_json_file}")
 
-        # Save to file
-        # save_devices_to_file(devices)
+        # Retrieve devices
+        print(f"Connecting to UNMS/UISP at {base_url}...")
+        devices = get_unms_devices(base_url, api_key, verify_ssl=verify_ssl)
 
-    save_device_data_to_excel()
-    # else:
-    #     print("Failed to retrieve devices.")
+        if devices:
+            # Save to file
+            file_name = save_devices_to_file(devices)
+
+            # Save to Excel
+            save_device_data_to_excel(file_name)
+        else:
+            print("Failed to retrieve devices.")
